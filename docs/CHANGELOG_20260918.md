@@ -70,10 +70,9 @@
 ## 5. Repository Consolidation & Artifacts
 
 * **Canonical Repository**: `https://github.com/sydneygemstone-sudo/coral-crew.git`
-* **Canonical Branch**: `main`
-* **Consolidation Commit SHA**: *(recorded upon commit)*
+* **Consolidation Baseline Snapshot Commit SHA**: `d4b9f64f8e60711c4436deaa9cd66f765d5a44fb` (`d4b9f64`)
 * **Snapshot Tag**: `classroom-20260918-pre-astra`
-* **Student-Works Cleanup Commit SHA**: *(recorded upon cleanup)*
+* **Student-Works Cleanup Commit SHA**: `5ec2b6279930f7b14798c19955743b171f114170` (`5ec2b62`)
 
 ### Local Paths Retained
 * **Canonical Working Copy**: `/Users/gemstone/Desktop/coral-crew` (Sole active development source)

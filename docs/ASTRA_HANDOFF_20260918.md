@@ -11,6 +11,8 @@
 * **Canonical Local Path**: `/Users/gemstone/Desktop/coral-crew`
 * **Default Branch**: `main`
 * **Snapshot Tag**: `classroom-20260918-pre-astra`
+* **Consolidation Baseline Snapshot Commit**: `d4b9f64f8e60711c4436deaa9cd66f765d5a44fb`
+* **Student-Works Cleanup Commit**: `5ec2b6279930f7b14798c19955743b171f114170`
 * **Current Version**: `2026-09-18 classroom pre-Astra snapshot`
 
 > [!WARNING]
