@@ -20,6 +20,9 @@
 .teacher-link{display:block;margin:8px auto;color:#187383;font-size:12px;font-weight:700;text-decoration:underline}
 
 #boss-hud{position:absolute;top:max(76px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(90%,420px);background:#2c0c14dd;border:2px solid #ff4766;border-radius:18px;padding:8px 16px;color:#ffcad4;text-align:center;box-shadow:0 6px 20px #ff004440;pointer-events:none;z-index:4}
+#boss-hud.active-danger{animation:krakenPulse 1.2s infinite ease-in-out;}
+@keyframes krakenPulse{0%,100%{transform:translateX(-50%) scale(1);box-shadow:0 6px 20px #ff004440;}50%{transform:translateX(-50%) scale(1.04);box-shadow:0 8px 30px #ff004499;}}
+#vignette.hit-flash{background:radial-gradient(circle, rgba(255,30,30,0.45) 0%, rgba(180,0,15,0.85) 100%)!important;box-shadow:inset 0 0 140px rgba(255,0,0,0.9)!important;transition:background 0.05s ease-out;}
 .boss-label{font-size:12px;font-weight:800;letter-spacing:1px;margin-bottom:4px}
 .meter.boss-meter{height:10px;background:#4f1823;border-radius:8px;overflow:hidden}
 .meter.boss-meter i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff3b5c,#ff9900);transition:width .2s}

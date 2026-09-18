@@ -72,7 +72,7 @@
   <div class="panel" style="margin-bottom: 20px;">
     <div class="field-row">
       <label>房间号: <input id="room" value="CORAL" maxlength="16" style="font-weight:bold; width:100px; text-transform:uppercase;"></label>
-      <label>教师口令: <input id="code" type="password" value="" placeholder="教师口令" style="width:120px;"></label>
+      <label>教师口令: <input id="code" type="password" value="CORAL" placeholder="教师口令" style="width:120px;"></label>
       <button id="btn-connect" class="btn primary">🔄 连接房间监控</button>
       <button id="btn-pause" class="btn">⏸ 暂停航程</button>
       <button id="btn-resume" class="btn primary">▶ 继续航程</button>
@@ -263,6 +263,7 @@ function connectWS() {
 $('btn-connect').onclick = connectWS;
 $('btn-pause').onclick = () => sendTeacher('pause');
 $('btn-resume').onclick = () => sendTeacher('resume');
+setTimeout(connectWS, 150);
 
 // Broadcast Question
 $('btn-broadcast-q').onclick = () => {

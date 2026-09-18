@@ -69,10 +69,12 @@ export function createGame() {
     sharks: [{ id: 'shark-0', x: -11, z: 6, hp: 60 }, { id: 'shark-1', x: 11, z: 9, hp: 60 }],
     kraken: {
       active: false,
+      warning: 0,
       hp: 150,
       maxHp: 150,
       x: 0,
       z: 3.5,
+      slamTimer: 3.8,
       tentacles: [
         { id: 'tentacle-0', x: -4, z: -3.5, hp: 40 },
         { id: 'tentacle-1', x: 4, z: -3.5, hp: 40 },
@@ -202,11 +204,11 @@ export function handleAction(g, role, action, payload) {
       g.ship.chop = Math.min(1, g.ship.chop + chopIncrement);
       if (g.ship.chop >= 0.999) {
         g.ship.melon--;
-        const foodYield = g.upgrades.knife > 1 ? 4 : 3;
+        const foodYield = g.upgrades.knife > 1 ? 8 : 6;
         g.ship.food = Math.min(30, g.ship.food + foodYield);
         g.ship.chop = 0;
-        g.coins += 2;
-        g.message = '西瓜切好啦！潜水员回船补给。';
+        g.coins += 4;
+        g.message = '🍉 丰盛西瓜盛宴备齐！船备口粮充足 (+6 份)，尽情探险！';
         effect(g, 'feed', p);
         eatPirate(g);
       }
@@ -233,16 +235,20 @@ export function handleAction(g, role, action, payload) {
         const liveTentacle = g.kraken.tentacles.find(t => t.hp > 0);
         if (liveTentacle) {
           liveTentacle.hp -= dmg;
+          g.kraken.slamTimer = (g.kraken.slamTimer || 0) + 1.6;
           effect(g, 'cannon', p, liveTentacle);
-          g.message = '🎯 命中巨妖触手！';
+          effect(g, 'kraken_hurt', liveTentacle);
+          g.message = '🎯 重炮轰中巨妖触手！打断了海怪蓄力！';
           if (liveTentacle.hp <= 0) {
             g.coins += 15;
             g.message = '💥 轰断了一根巨妖触手！+15 金币！';
           }
           if (g.kraken.tentacles.every(t => t.hp <= 0)) {
             g.kraken.active = false;
-            g.coins += 30;
-            g.message = '🎉 击退了北海巨妖 Kraken！+30 金币！';
+            g.weather = 'sunny';
+            g.coins += 35;
+            g.message = '🎉 最佳合作！成功击退北海巨妖 Kraken！+35 金币！';
+            effect(g, 'coin', { x: 0, z: 2 });
           }
           return true;
         }
@@ -308,15 +314,20 @@ export function handleAction(g, role, action, payload) {
         target.z = clamp(target.z + (dz / length) * 3, -3, 10);
         g._sharkRepel[target.id] = 3;
       }
-      // If Kraken is nearby, bubble blast stuns it
-      if (g.kraken.active && distance(p, g.kraken) < 6) {
-        g.kraken.hp -= 20;
+      // If Kraken is nearby, bubble blast stuns it and damages core
+      if (g.kraken.active && distance(p, g.kraken) < 8) {
+        g.kraken.hp -= 25;
+        g.kraken.slamTimer = (g.kraken.slamTimer || 0) + 1.8;
+        g.coins += 6;
         effect(g, 'bubble', p, g.kraken);
-        g.message = '🫧 水泡枪击中了巨妖核心！';
+        effect(g, 'coin', p);
+        g.message = '🫧 潜水员水下重击巨妖弱点！打断了海怪拍击，+6金币！';
         if (g.kraken.hp <= 0) {
           g.kraken.active = false;
-          g.coins += 40;
-          g.message = '🎉 潜水员水泡击破了巨妖！+40 金币！';
+          g.weather = 'sunny';
+          g.coins += 35;
+          g.message = '🎉 潜水员击穿巨妖核心！巨妖哀鸣潜入深渊！+35 金币！';
+          effect(g, 'coin', { x: 0, z: 2 });
         }
       }
       return true;
@@ -425,7 +436,7 @@ export function step(g, seconds) {
   // Diver movement & oxygen
   for (const role of ROLES) {
     const p = g.players[role], input = g._input[role];
-    p.hunger = Math.max(0, p.hunger - dt * 0.7);
+    p.hunger = Math.max(0, p.hunger - dt * 0.45);
 
     // Speed calculation
     let speed = 0;
@@ -512,14 +523,14 @@ export function step(g, seconds) {
     }
 
     // Regular food
-    if (g.ship.food > 0 && (diver.hunger < 80 || diver.hp < 85) && g._cooldown.feed <= 0) {
+    if (g.ship.food > 0 && (diver.hunger < 85 || diver.hp < 90) && g._cooldown.feed <= 0) {
       g.ship.food--;
-      diver.hunger = Math.min(100, diver.hunger + 55);
-      diver.hp = Math.min(100, diver.hp + 55);
+      diver.hunger = Math.min(100, diver.hunger + 65);
+      diver.hp = Math.min(100, diver.hp + 60);
       diver.oxygen = diver.maxOxygen;
-      g._cooldown.feed = 1;
+      g._cooldown.feed = 0.8;
       effect(g, 'feed', DOCK);
-      g.message = '补给完成，再去探险吧！';
+      g.message = '🍉 潜水员享用清凉西瓜！体力与生命大幅回满！';
     }
   }
 
@@ -557,20 +568,45 @@ export function step(g, seconds) {
     }
   }
 
-  // Kraken logic
+  // Kraken logic & Attack Slam loop
   g._krakenSpawnTimer -= dt;
+  if (g._krakenSpawnTimer <= 4 && g._krakenSpawnTimer > 0 && !g.kraken.active) {
+    g.kraken.warning = g._krakenSpawnTimer;
+    if (!g._krakenOmenTriggered) {
+      g._krakenOmenTriggered = true;
+      g.weather = 'storm';
+      g.message = '🌊 巨浪翻涌！深海中隐现庞大黑影，海水正在变暗……！';
+      effect(g, 'kraken_omen', { x: 0, z: 3.5 });
+    }
+  }
+
   if (g._krakenSpawnTimer <= 0 && !g.kraken.active) {
     g.kraken.active = true;
+    g.kraken.warning = 0;
+    g._krakenOmenTriggered = false;
     g.kraken.hp = 150;
+    g.kraken.slamTimer = 3.8;
     g.kraken.tentacles.forEach(t => { t.hp = 40; });
-    g._krakenSpawnTimer = 60;
-    g.message = '🦑 警告：北海巨妖 Kraken 浮出水面！开炮！';
+    g._krakenSpawnTimer = 65;
+    g.weather = 'storm';
+    g.message = '🦑 警告：北海巨妖 Kraken 破浪而出！海盗开炮轰触手，潜水员水下打弱点！';
+    effect(g, 'kraken_roar', { x: 0, z: 3.5 });
     effect(g, 'hit', { x: 0, z: 2 });
   }
 
   if (g.kraken.active) {
-    // Tentacles damage ship slowly
-    g.ship.hp = Math.max(0, g.ship.hp - dt * 1.2);
+    g.weather = 'storm';
+    g.kraken.slamTimer = (g.kraken.slamTimer || 3.8) - dt;
+    if (g.kraken.slamTimer <= 0) {
+      g.kraken.slamTimer = 3.6; // Rhythmic slam every 3.6s
+      const liveTentacles = g.kraken.tentacles.filter(t => t.hp > 0);
+      const damage = liveTentacles.length > 0 ? (liveTentacles.length * 4.5 + 4) : 4;
+      g.ship.hp = Math.max(0, g.ship.hp - damage);
+      effect(g, 'kraken_hit', { x: 0, z: -7 });
+      g.message = `💥 巨妖触手猛烈撞击船身！耐久 -${Math.round(damage)}！快轰触手！`;
+    }
+  } else if (g.weather === 'storm' && (!g.kraken.warning || g.kraken.warning <= 0)) {
+    g.weather = 'sunny';
   }
 
   // Regular boat-crashing monsters
@@ -664,9 +700,13 @@ export function teacherControl(g, action, payload) {
   }
   if (action === 'spawn_kraken') {
     g.kraken.active = true;
+    g.kraken.warning = 0;
     g.kraken.hp = 150;
+    g.kraken.slamTimer = 3.8;
     g.kraken.tentacles.forEach(t => { t.hp = 40; });
-    g.message = '🦑 老师召唤了北海巨妖试炼！全员戒备！';
+    g.weather = 'storm';
+    g.message = '🦑 老师召唤了北海巨妖试炼！狂涛暴雨，全员戒备！';
+    effect(g, 'kraken_roar', { x: 0, z: 3.5 });
     return true;
   }
   if (action === 'set_weather') {

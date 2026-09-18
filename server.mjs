@@ -25,12 +25,27 @@ export function getLanAddresses() {
   return addresses;
 }
 
+export function getPrimaryLanAddress() {
+  const lanList = getLanAddresses();
+  const physical = lanList.filter(a => !a.interface.startsWith('utun') && !a.interface.startsWith('tun') && !a.interface.startsWith('tap') && !a.interface.startsWith('tailscale'));
+  const candidates = physical.length > 0 ? physical : lanList;
+  const en0Pref = candidates.find(a => (a.interface === 'en0' || a.interface.startsWith('en')) && (a.address.startsWith('192.168.') || a.address.startsWith('10.')));
+  if (en0Pref) return en0Pref;
+  const privatePref = candidates.find(a => a.address.startsWith('192.168.') || a.address.startsWith('10.') || (a.address.startsWith('172.') && Number(a.address.split('.')[1]) >= 16 && Number(a.address.split('.')[1]) <= 31));
+  if (privatePref) return privatePref;
+  return candidates[0] || { interface: 'lo0', address: '127.0.0.1' };
+}
+
 export function createServer({ port = Number(process.env.PORT || 18888), host = process.env.HOST || '0.0.0.0', graceMs = 15000, teacherCodes = { CORAL: process.env.TEACHER_CODE } } = {}) {
   const rooms = new Map();
   const send = (ws, data) => { if (ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 1024 * 1024) ws.send(JSON.stringify(data)); };
   const fail = (ws, message) => send(ws, { type: 'error', message });
   function state(room) { return { type: 'state', state: snapshot(room.game) }; }
-  function broadcast(room) { const data = state(room); for (const slot of Object.values(room.slots)) if (slot?.ws) send(slot.ws, data); }
+  function broadcast(room) {
+    const data = state(room);
+    for (const slot of Object.values(room.slots)) if (slot?.ws) send(slot.ws, data);
+    if (room.teachers) for (const tws of room.teachers) send(tws, data);
+  }
   function disconnect(ws) {
     const { room, role } = ws.session || {};
     if (!room || room.slots[role]?.ws !== ws) return;
@@ -50,7 +65,7 @@ export function createServer({ port = Number(process.env.PORT || 18888), host = 
     if (rawPath === '/api/lan') {
       const currentPort = server.address()?.port ?? port;
       const lanList = getLanAddresses();
-      const primaryLan = lanList.find(a => a.address.startsWith('192.168.') || a.address.startsWith('10.')) || lanList[0] || { address: '127.0.0.1' };
+      const primaryLan = getPrimaryLanAddress();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         ok: true,
@@ -64,8 +79,7 @@ export function createServer({ port = Number(process.env.PORT || 18888), host = 
     }
     if (rawPath === '/api/qr') {
       const currentPort = server.address()?.port ?? port;
-      const lanList = getLanAddresses();
-      const primaryLan = lanList.find(a => a.address.startsWith('192.168.') || a.address.startsWith('10.')) || lanList[0] || { address: '127.0.0.1' };
+      const primaryLan = getPrimaryLanAddress();
       const targetUrl = `http://${primaryLan.address}:${currentPort}/`;
       try {
         const svg = await QRCode.toString(targetUrl, { type: 'svg', margin: 1, width: 260 });
@@ -100,7 +114,10 @@ export function createServer({ port = Number(process.env.PORT || 18888), host = 
     ws.alive = true; ws.rate = { at: Date.now(), count: 0 }; ws.lastInput = 0; ws.inputRate = { at: Date.now(), count: 0 };
     ws.on('pong', () => { ws.alive = true; });
     ws.on('error', () => {});
-    ws.on('close', () => disconnect(ws));
+    ws.on('close', () => {
+      if (ws.teacherRoom) ws.teacherRoom.teachers?.delete(ws);
+      disconnect(ws);
+    });
     ws.on('message', (buffer, binary) => {
       if (binary) { fail(ws, '只支持游戏消息'); return; }
       const now = Date.now();
@@ -109,10 +126,24 @@ export function createServer({ port = Number(process.env.PORT || 18888), host = 
       let data; try { data = JSON.parse(buffer.toString()); } catch { fail(ws, '消息格式不正确'); return; }
       if (!data || typeof data !== 'object' || Array.isArray(data)) { fail(ws, '消息格式不正确'); return; }
       if (data.type === 'teacher') {
-        const room = rooms.get(data.room);
-        const expected = teacherCodes[data.room] ?? (teacherCodes.CORAL || process.env.TEACHER_CODE || 'CORAL');
-        if (!room || !expected || typeof data.code !== 'string' || !equalToken(expected, data.code)) { fail(ws, '房间或教师口令不正确'); return; }
-        if (teacherControl(room.game, data.action, data.payload)) { broadcast(room); send(ws,{type:'teacher',paused:room.game.teacherPaused,state:snapshot(room.game)}); }
+        const roomName = typeof data.room === 'string' ? data.room.toUpperCase() : 'CORAL';
+        const expected = teacherCodes[roomName] ?? (teacherCodes.CORAL || process.env.TEACHER_CODE || 'CORAL');
+        if (!expected || typeof data.code !== 'string' || !equalToken(expected, data.code)) { fail(ws, '房间或教师口令不正确'); return; }
+        let room = rooms.get(roomName);
+        if (!room) {
+          if (rooms.size >= 32) { fail(ws, '房间已满，请稍后再试'); return; }
+          room = { name: roomName, game: createGame(), slots: { pirate: null, diver: null }, lastActive: now, teachers: new Set() };
+          rooms.set(roomName, room);
+        }
+        room.teachers = room.teachers || new Set();
+        room.teachers.add(ws);
+        ws.teacherRoom = room;
+        let changed = false;
+        if (data.action) {
+          changed = Boolean(teacherControl(room.game, data.action, data.payload));
+        }
+        if (changed) broadcast(room);
+        send(ws, { type: 'teacher', paused: room.game.teacherPaused, state: snapshot(room.game) });
         return;
       }
       if (data.type === 'join') {
@@ -179,8 +210,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   const service = createServer();
   service.listen().then(address => {
     const port = address.port;
-    const lanList = getLanAddresses();
-    const primaryLan = lanList.find(a => a.address.startsWith('192.168.') || a.address.startsWith('10.')) || lanList[0] || { address: '127.0.0.1' };
+    const primaryLan = getPrimaryLanAddress();
     console.log(`\n======================================================`);
     console.log(`⛵ 珊瑚船员 Coral Crew · 局域网3D多人合作游戏已启动！`);
     console.log(`💻 本地访问:    http://localhost:${port}/`);

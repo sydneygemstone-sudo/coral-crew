@@ -68,10 +68,12 @@ function mesh(geo, color, parent = scene, pos = [0, 0, 0], scale = [1, 1, 1], ex
 const sphereGeo = new THREE.IcosahedronGeometry(1, 1);
 const boxGeo = new THREE.BoxGeometry(1, 1, 1);
 const cylinderGeo = new THREE.CylinderGeometry(1, 1, 1, 10);
+const coneGeo = new THREE.ConeGeometry(1, 1, 8);
 
 const ball = (c, p, xyz, s = [1, 1, 1], extra = {}) => mesh(sphereGeo, c, p, xyz, s, extra);
 const box = (c, p, xyz, s) => mesh(boxGeo, c, p, xyz, s);
 function cyl(c, p, xyz, r = 0.2, h = 1) { return mesh(cylinderGeo, c, p, xyz, [r, h, r]); }
+function cone(c, p, xyz, r = 0.5, h = 1) { return mesh(coneGeo, c, p, xyz, [r, h, r]); }
 
 function link(a, b, r, c, p) {
   const start = new THREE.Vector3(...a), end = new THREE.Vector3(...b), d = end.clone().sub(start);
@@ -366,22 +368,81 @@ function chestModel() {
   return g;
 }
 
-// Kraken Boss Model
+// Kraken Boss Model - Colossal North Sea Leviathan
 const krakenGroup = new THREE.Group();
-krakenGroup.position.set(0, 0.5, 3.5);
+krakenGroup.position.set(0, -0.6, 3.5);
 scene.add(krakenGroup);
 krakenGroup.visible = false;
-ball(0x6e2c6e, krakenGroup, [0, 1.2, 0], [1.5, 1.8, 1.4]);
-ball(0xffdd44, krakenGroup, [-0.6, 1.5, 1.2], [0.25, 0.3, 0.1], { emissive: 0xffaa00, emissiveIntensity: 0.5 });
-ball(0xffdd44, krakenGroup, [0.6, 1.5, 1.2], [0.25, 0.3, 0.1], { emissive: 0xffaa00, emissiveIntensity: 0.5 });
+
+const krakenBody = new THREE.Group();
+krakenGroup.add(krakenBody);
+
+// Massive Mantle / Head (scaled 2.5x: radius 3.2, height 4.0, depth 2.8)
+ball(0x3e1244, krakenBody, [0, 2.8, 0], [3.2, 4.0, 2.8]);
+// Armored dorsal ridges & horns
+box(0x280b2e, krakenBody, [0, 5.2, -0.2], [1.1, 2.2, 2.0]);
+cone(0x220726, krakenBody, [-1.5, 5.6, -0.6], 0.6, 2.2);
+cone(0x220726, krakenBody, [1.5, 5.6, -0.6], 0.6, 2.2);
+cone(0x220726, krakenBody, [0, 6.0, -0.8], 0.55, 2.0);
+
+// Menacing glowing predator eyes with slit pupils
+const eyeL = ball(0xff1a1a, krakenBody, [-1.4, 2.5, 2.4], [0.65, 0.75, 0.3], { emissive: 0xff2200, emissiveIntensity: 1.6 });
+const eyeR = ball(0xff1a1a, krakenBody, [1.4, 2.5, 2.4], [0.65, 0.75, 0.3], { emissive: 0xff2200, emissiveIntensity: 1.6 });
+box(0x0a0000, krakenBody, [-1.4, 2.5, 2.68], [0.12, 0.72, 0.05]);
+box(0x0a0000, krakenBody, [1.4, 2.5, 2.68], [0.12, 0.72, 0.05]);
+
+// Voracious dark beak
+cone(0x1a121d, krakenBody, [0, 1.0, 2.5], 1.1, 1.6);
+
+// 6 Colossal Articulated Tentacles (Surrounding the ship)
 const tentacles = [];
-for (let i = 0; i < 4; i++) {
+const tentacleLayout = [
+  [-4.8, 0.4, 7.5, 0.52, 0.0, -0.3],     // Far left sweep
+  [-2.6, -1.8, 8.8, 0.62, 0.9, 0.25],    // Left front slammer
+  [-0.9, -2.6, 9.5, 0.68, 1.8, 0.4],     // Center-left mega tentacle
+  [0.9, -2.6, 9.5, 0.68, 2.7, -0.4],     // Center-right mega tentacle
+  [2.6, -1.8, 8.8, 0.62, 3.6, -0.25],    // Right front slammer
+  [4.8, 0.4, 7.5, 0.52, 4.5, 0.3],      // Far right sweep
+];
+
+for (let i = 0; i < tentacleLayout.length; i++) {
+  const [tx, tz, tLen, tThick, phase, rotY] = tentacleLayout[i];
   const tg = new THREE.Group();
-  tg.position.set((i - 1.5) * 2.2, -0.2, 0);
+  tg.position.set(tx, 0, tz);
+  tg.rotation.y = rotY;
   krakenGroup.add(tg);
-  link([0, 0, 0], [0, 2.4, 0.8], 0.28, 0x8a388a, tg);
-  ball(0xff99bb, tg, [0, 1.2, 1.0], [0.18, 0.18, 0.18]);
-  tentacles.push(tg);
+
+  // 3 Segmented curved limb
+  link([0, 0, 0], [0, tLen * 0.42, 0.8], tThick, 0x5e1b62, tg);
+  link([0, tLen * 0.42, 0.8], [0, tLen * 0.78, -0.5], tThick * 0.75, 0x75237c, tg);
+  link([0, tLen * 0.78, -0.5], [0, tLen, 0.4], tThick * 0.5, 0x8e2f97, tg);
+
+  // Glowing suction cup disks (weakpoints)
+  for (let s = 1; s <= 4; s++) {
+    const yPos = s * (tLen / 5.2);
+    ball(0xff5588, tg, [0, yPos, 0.55 + Math.sin(s) * 0.2], [0.35, 0.35, 0.2], {
+      emissive: 0xff2255,
+      emissiveIntensity: 0.7
+    });
+  }
+  tentacles.push({ group: tg, phase, len: tLen });
+}
+
+// Colossal Underwater Shadow (Projected deep beneath waves)
+const krakenShadow = cyl(0x061118, scene, [0, -3.85, 3.2], 9.5, 0.08);
+krakenShadow.visible = false;
+
+// Screen Shake & Ship Wobble Feedback State
+let shakeMagnitude = 0;
+let shipTiltZ = 0, shipTiltX = 0;
+let shipTiltVelZ = 0, shipTiltVelX = 0;
+
+function triggerHitFlash() {
+  const v = $('vignette');
+  if (v) {
+    v.classList.add('hit-flash');
+    setTimeout(() => v.classList.remove('hit-flash'), 280);
+  }
 }
 
 const entities = new Map(), fx = new Map(), seenEffects = new Set();
@@ -440,6 +501,28 @@ function sound(kind) {
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
       osc.connect(gain); gain.connect(audioCtx.destination);
       osc.start(t); osc.stop(t + 0.52);
+    } else if (kind === 'kraken_roar' || kind === 'kraken_omen') {
+      const osc1 = audioCtx.createOscillator(), osc2 = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc1.type = 'sawtooth';
+      osc2.type = 'sine';
+      osc1.frequency.setValueAtTime(70, t);
+      osc1.frequency.exponentialRampToValueAtTime(32, t + 1.3);
+      osc2.frequency.setValueAtTime(105, t);
+      osc2.frequency.linearRampToValueAtTime(42, t + 1.1);
+      gain.gain.setValueAtTime(0.25, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 1.35);
+      osc1.connect(gain); osc2.connect(gain); gain.connect(audioCtx.destination);
+      osc1.start(t); osc1.stop(t + 1.4);
+      osc2.start(t); osc2.stop(t + 1.4);
+    } else if (kind === 'kraken_hit') {
+      const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(160, t);
+      osc.frequency.exponentialRampToValueAtTime(24, t + 0.42);
+      gain.gain.setValueAtTime(0.38, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.48);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(t); osc.stop(t + 0.5);
     } else {
       const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
       osc.connect(gain); gain.connect(audioCtx.destination);
@@ -468,7 +551,7 @@ function syncEffects(effects) {
     const g = new THREE.Group();
     g.position.set(e.x, e.kind === 'cannon' ? 0.9 : -2.6, e.z);
     scene.add(g);
-    const colors = { cannon: 0xffd77e, bubble: 0x9affdd, pickup: 0xffe89c, hit: 0xff8b8b, feed: 0xc1ffab, coin: 0xffea55, sonar: 0x55eeff };
+    const colors = { cannon: 0xffd77e, bubble: 0x9affdd, pickup: 0xffe89c, hit: 0xff8b8b, feed: 0xc1ffab, coin: 0xffea55, sonar: 0x55eeff, kraken_hit: 0xff2222, kraken_roar: 0xaa2266, kraken_omen: 0x442255 };
     for (let i = 0; i < (quality === 'smooth' ? 1 : 8); i++) {
       const a = i * 6.28 / 8;
       ball(colors[e.kind] || 0xffffff, g, [Math.cos(a) * 0.25, 0, Math.sin(a) * 0.25], [0.12, 0.12, 0.12]);
@@ -481,6 +564,21 @@ function syncEffects(effects) {
     if (e.kind === 'deposit') toast('🎒 → ⛵ 已交回！团队总金币增加');
     if (e.kind === 'rescue') { toast('🛟 遇险回船，宝藏还在原处'); speak('救回船边了。落下的宝藏还在原处。'); }
     if (e.kind === 'feed') toast('补给完成！再出发 🍉');
+    if (e.kind === 'kraken_hit') {
+      shakeMagnitude = 1.6;
+      shipTiltVelZ = (Math.random() > 0.5 ? 1 : -1) * 0.45;
+      shipTiltVelX = 0.28;
+      triggerHitFlash();
+      toast('💥 Kraken 巨须猛烈拍打船舷！小船剧烈晃荡！');
+    }
+    if (e.kind === 'kraken_roar') {
+      shakeMagnitude = 0.65;
+      toast('🌊 深渊狂啸！Kraken 正在掀起惊涛骇浪！');
+    }
+    if (e.kind === 'kraken_omen') {
+      shakeMagnitude = 0.45;
+      toast('⚠️ 惊涛异象！天空海面骤暗，深海巨妖即将破浪而出！');
+    }
   }
 }
 
@@ -500,8 +598,12 @@ function acceptState(s) {
     }
   }
 
-  // Weather atmosphere adjustment
-  if (s.weather === 'sunset') {
+  // Weather & Kraken atmosphere adjustment
+  if (s.kraken && (s.kraken.active || s.kraken.warning > 0)) {
+    renderer.setClearColor(0x141f2a);
+    scene.fog.color.setHex(0x182535);
+    sun.color.setHex(0x667788);
+  } else if (s.weather === 'sunset') {
     renderer.setClearColor(0xe07b46);
     scene.fog.color.setHex(0xe07b46);
     sun.color.setHex(0xffaa55);
@@ -522,10 +624,22 @@ function acceptState(s) {
   // Kraken Boss
   if (s.kraken) {
     krakenGroup.visible = !!s.kraken.active;
-    $('boss-hud').hidden = !s.kraken.active;
-    if (s.kraken.active) {
+    const bossHud = $('boss-hud');
+    bossHud.hidden = !s.kraken.active && !(s.kraken.warning > 0);
+    const bossLabel = bossHud.querySelector('.boss-label');
+    if (s.kraken.warning > 0 && !s.kraken.active) {
+      bossHud.classList.add('active-danger');
+      $('boss-meter-fill').style.width = '100%';
+      $('boss-meter-fill').style.background = 'linear-gradient(90deg, #ff9900, #ff4400)';
+      if (bossLabel) bossLabel.textContent = `⚠️ 警告：深海巨妖 KRAKEN 破浪逼近中！(${Math.ceil(s.kraken.warning)}s)`;
+    } else if (s.kraken.active) {
+      bossHud.classList.add('active-danger');
       const ratio = Math.max(0, Math.min(1, s.kraken.hp / s.kraken.maxHp));
       $('boss-meter-fill').style.width = (ratio * 100) + '%';
+      $('boss-meter-fill').style.background = 'linear-gradient(90deg, #ff2255, #ff5500)';
+      if (bossLabel) bossLabel.textContent = `🦑 警告：深渊巨妖 KRAKEN 狂暴抽打船体！HP: ${Math.ceil(s.kraken.hp)} / ${s.kraken.maxHp}`;
+    } else {
+      bossHud.classList.remove('active-danger');
     }
   }
 
@@ -585,7 +699,7 @@ function updateHud() {
     : state.phase === 'waiting'
     ? '准备出发！'
     : role === 'pirate'
-    ? '🍉 切瓜备粮 · 榨特饮 · 怪物来了就开炮！'
+    ? (state.kraken?.active ? '🐙 巨妖狂暴拍击！快用重炮轰击断须！' : (state.ship.food >= 8 ? '🍉 仓储充裕 · 怪物来了就开重炮！' : '🍉 盛宴备粮 · 榨特饮 · 守护小船！'))
     : d.hunger < 25
     ? '🍉 肚子饿了，向上回船！'
     : d.bagGems + d.bagStars > 0
@@ -609,7 +723,7 @@ function updateHud() {
     b.disabled = state.paused || (!playing && state.phase !== 'learning') || !both;
     b.querySelector('small').textContent = cd > 0
       ? Math.ceil(cd) + ' 秒'
-      : act === 'chop' ? (Math.round(state.ship.chop * 3) + ' / 3')
+      : act === 'chop' ? (state.ship.food >= 8 ? '仓储充裕' : (Math.round(state.ship.chop * 3) + ' / 3'))
       : act === 'fire' ? '大炮轰击'
       : act === 'bubble' ? '驱逐水怪'
       : act === 'sonar' ? '探测全图'
@@ -691,6 +805,7 @@ function send(data) {
     acceptState(simModule.snapshot(localGame));
     return;
   }
+  if (data.type !== 'join' && (blocked || !role)) return;
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(data));
 }
 
@@ -712,7 +827,7 @@ function makeControls() {
     ['repair', '🔧', '修船', ''],
     ['cook', '🍹', '榨特饮', ''],
     ['fire', '💥', '轰重炮', 'primary'],
-    ['chop', '🍉', '切西瓜', 'primary'],
+    ['chop', '🍉', '盛宴备粮', 'primary'],
   ] : [
     ['rescue', '🛟', '救援西瓜', ''],
     ['sonar', '📡', '声纳', ''],
@@ -784,6 +899,7 @@ function connect(chosenRole, chosenRoom) {
       $('join-error').textContent = message;
       toast(message);
       blocked = true;
+      socket?.close();
       $('lobby').hidden = false;
     }
   });
@@ -824,7 +940,7 @@ document.querySelectorAll('[data-role]').forEach(b => b.addEventListener('click'
     b.dataset.armed = 'yes';
     b.classList.add('selected');
     speak(b.dataset.role === 'pirate'
-      ? '海盗在船上切西瓜、做特饮、开重炮保护小船。再点一次选海盗。'
+      ? '海盗在船上盛宴备粮、做特饮、开重炮保护小船。再点一次选海盗。'
       : '潜水员在深海找宝石与珍珠，带回金圈。再点一次选潜水员。');
     $('join-error').textContent = '🔊 听一听 · 再点一次选择登船';
     return;
@@ -1070,13 +1186,43 @@ function frame(now) {
     }
   }
 
-  // Animate Kraken Tentacles
+  // Ship water buoyancy & dynamic tilt physics when Kraken slams
+  shipTiltVelZ += (-shipTiltZ * 22 - shipTiltVelZ * 5.5) * dt;
+  shipTiltZ += shipTiltVelZ * dt;
+  shipTiltVelX += (-shipTiltX * 22 - shipTiltVelX * 5.5) * dt;
+  shipTiltX += shipTiltVelX * dt;
+
+  ship.rotation.z = Math.sin(t * 1.6) * 0.02 + shipTiltZ;
+  ship.rotation.x = Math.cos(t * 1.3) * 0.015 + shipTiltX;
+  ship.position.y = Math.sin(t * 1.8) * 0.05;
+
+  // Screen shake decay and camera application
+  if (shakeMagnitude > 0.005) {
+    const ox = (Math.random() - 0.5) * shakeMagnitude;
+    const oy = (Math.random() - 0.5) * shakeMagnitude;
+    const oz = (Math.random() - 0.5) * shakeMagnitude * 0.4;
+    camera.position.set(ox, 33 + oy, 24 + oz);
+    shakeMagnitude *= Math.pow(0.04, dt);
+  } else {
+    camera.position.set(0, 33, 24);
+    shakeMagnitude = 0;
+  }
+
+  // Animate Kraken Leviathan & 6 Tentacles
   if (krakenGroup.visible) {
-    krakenGroup.position.y = 0.5 + Math.sin(t * 1.8) * 0.2;
+    krakenGroup.position.y = -0.6 + Math.sin(t * 1.5) * 0.45;
+    krakenBody.rotation.y = Math.sin(t * 0.8) * 0.08;
+    krakenShadow.visible = true;
+    krakenShadow.scale.setScalar(1 + Math.sin(t * 1.5) * 0.08);
+
     for (let i = 0; i < tentacles.length; i++) {
-      tentacles[i].rotation.z = Math.sin(t * 2.5 + i * 1.5) * 0.3;
-      tentacles[i].rotation.x = Math.cos(t * 2.0 + i) * 0.2;
+      const ten = tentacles[i];
+      ten.group.rotation.z = Math.sin(t * 2.8 + ten.phase) * 0.38 + (i % 2 === 0 ? 0.15 : -0.15);
+      ten.group.rotation.x = Math.cos(t * 2.2 + ten.phase) * 0.28 + 0.12;
+      ten.group.position.y = Math.sin(t * 2.0 + ten.phase) * 0.5;
     }
+  } else {
+    krakenShadow.visible = false;
   }
 
   for (const { g, base, amp } of sway) g.rotation.z = Math.sin(t * 1.5 + base) * amp;
@@ -1117,12 +1263,12 @@ renderer.domElement.addEventListener('webglcontextlost', e => {
 showMenu(false);
 
 const actionWords = {
-  chop: '点西瓜切瓜备粮。',
+  chop: '点盛宴备粮，切大西瓜为全船准备丰盛食物。',
   cook: '榨西瓜特饮，潜水员喝了能极速冲刺。',
-  fire: '点大炮，轰击怪物或巨妖。',
+  fire: '点大炮，轰退怪物并击晕巨妖触手！',
   repair: '点扳手修补小船。',
   boost: '点闪电加速游动。',
-  bubble: '气泡枪驱赶周围鲨鱼和海怪。',
+  bubble: '气泡枪驱赶鲨鱼并重创巨妖！',
   sonar: '声纳雷达扫描宝藏。',
   rescue: '饿到不能动时，点救援西瓜。',
 };
@@ -1140,9 +1286,9 @@ $('ready').onclick = () => { resetInput(); action('ready'); };
 $('help').onclick = () => speak(!$('lobby').hidden
   ? '点角色听介绍，再点一次登船。继续当前航程会保留进度，新航程会建立新房间。'
   : role === 'pirate'
-  ? '按住左边圆盘拖动。点西瓜切瓜，点榨特饮为队友加速，点大炮轰退水怪与巨妖，点扳手修船。'
+  ? '按住左边圆盘拖动。点盛宴备粮为小船备足食物，点榨特饮为队友加速，点大炮轰退水怪与巨妖，点扳手修船。'
   : role === 'diver'
-  ? '按住左边圆盘拖动。下水寻找宝石、星星和珍珠，注意氧气，带回船下金圈。用气泡枪赶走鲨鱼。'
+  ? '按住左边圆盘拖动。下水寻找宝石、星星和珍珠，注意氧气，带回船下金圈。用气泡枪赶走鲨鱼与击晕巨妖。'
   : '点一个角色听介绍，再点一次选择。两个人准备好才出发。');
 
 function applyQuality() {
